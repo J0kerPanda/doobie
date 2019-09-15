@@ -19,4 +19,6 @@ package object postgres
   object pgisimplicits
     extends PgisInstances
 
+  object pgrangeimplicits
+    extends PGrangeInstances
 }

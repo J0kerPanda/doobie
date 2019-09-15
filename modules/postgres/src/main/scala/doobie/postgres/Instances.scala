@@ -4,6 +4,7 @@
 
 package doobie.postgres
 
+import cats.data.NonEmptyList
 import doobie.enum.JdbcType
 import doobie._
 import doobie.util.invariant._
@@ -201,6 +202,27 @@ trait Instances {
       }, _.name)
   }
 
+  def pgObjectGet[A: TypeTag](schemaTypes: NonEmptyList[String])
+                             (parse: String => A): Get[A] =
+    Get.Advanced.other[PGobject](schemaTypes).tmap(obj => parse(obj.getValue))
+
+  def pgObjectPut[A: TypeTag](schemaTypes: NonEmptyList[String])
+                             (encode: A => String): Put[A] =
+    Put.Advanced.other[PGobject](schemaTypes).tcontramap { a =>
+      val obj = new PGobject
+      obj.setType(schemaTypes.head)
+      obj.setValue(encode(a))
+      obj
+    }
+
+  def pgObjectMeta[A: TypeTag](schemaTypes: NonEmptyList[String])
+                              (parse: String => A)
+                              (encode: A => String): Meta[A] =
+    new Meta[A](
+      get = pgObjectGet(schemaTypes)(parse),
+      put = pgObjectPut(schemaTypes)(encode)
+    )
+
   /** HSTORE maps to a java.util.Map[String, String]. */
   implicit val hstoreMetaJava: Meta[JMap[String, String]] =
     Meta.Advanced.other[JMap[String, String]]("hstore")
@@ -208,5 +230,4 @@ trait Instances {
   /** HSTORE maps to a Map[String, String]. */
   implicit val hstoreMeta: Meta[Map[String, String]] =
     hstoreMetaJava.timap[Map[String, String]](_.asScala.toMap)(_.asJava)
-
 }

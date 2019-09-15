@@ -9,6 +9,7 @@ import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
 import doobie.postgres.pgisimplicits._
+import doobie.postgres.pgrangeimplicits._
 import doobie.postgres.enums._
 import java.net.InetAddress
 import java.util.UUID
@@ -44,14 +45,17 @@ object pgtypesspec extends Specification {
       a0 <- Update[Option[A]](s"INSERT INTO TEST VALUES (?)", None).withUniqueGeneratedKeys[Option[A]]("value")(a)
     } yield a0
 
-  @SuppressWarnings(Array("org.wartremover.warts.StringPlusAny"))
   def testInOut[A](col: String, a: A)(implicit m: Get[A], p: Put[A]) =
+    testInOutCustom[A](col, a, a)
+
+  @SuppressWarnings(Array("org.wartremover.warts.StringPlusAny"))
+  def testInOutCustom[A](col: String, in: A, out: A)(implicit m: Get[A], p: Put[A]) =
     s"Mapping for $col as ${m.typeStack}" >> {
       s"write+read $col as ${m.typeStack}" in {
-        inOut(col, a).transact(xa).attempt.unsafeRunSync must_== Right(a)
+        inOut(col, in).transact(xa).attempt.unsafeRunSync must_== Right(out)
       }
       s"write+read $col as Option[${m.typeStack}] (Some)" in {
-        inOutOpt[A](col, Some(a)).transact(xa).attempt.unsafeRunSync must_== Right(Some(a))
+        inOutOpt[A](col, Some(in)).transact(xa).attempt.unsafeRunSync must_== Right(Some(out))
       }
       s"write+read $col as Option[${m.typeStack}] (None)" in {
         inOutOpt[A](col, None).transact(xa).attempt.unsafeRunSync must_== Right(None)
@@ -159,7 +163,14 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
-  skip("int4range")
+  testInOutCustom("int4range", PGrange[Int](Some(1), true, Some(2), true), PGrange[Int](Some(1), true, Some(3), false))
+  testInOutCustom("int4range", PGrange[Int](Some(1), false, Some(2), false), PGrange.empty[Int])
+  testInOutCustom("int4range", PGrange[Int](None, false, Some(2), true), PGrange(None, false, Some(3), false))
+  testInOut("int4range", PGrange[Int](None, false, Some(2), false))
+  testInOut("int4range", PGrange[Int](Some(1), true, None, false))
+  testInOutCustom("int4range", PGrange[Int](Some(1), false, None, false), PGrange[Int](Some(2), true, None, false))
+  testInOut("int4range", PGrange.empty[Int])
+
   skip("int8range")
   skip("numrange")
   skip("tsrange")
