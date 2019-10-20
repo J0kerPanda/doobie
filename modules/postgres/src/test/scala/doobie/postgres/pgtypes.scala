@@ -5,6 +5,7 @@
 package doobie.postgres
 
 import cats.effect.{ ContextShift, IO }
+import cats.instances.int._
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
@@ -163,13 +164,13 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
-  testInOutCustom("int4range", PGrange[Int](Some(1), true, Some(2), true), PGrange[Int](Some(1), true, Some(3), false))
-  testInOutCustom("int4range", PGrange[Int](Some(1), false, Some(2), false), PGrange.empty[Int])
-  testInOutCustom("int4range", PGrange[Int](None, false, Some(2), true), PGrange(None, false, Some(3), false))
-  testInOut("int4range", PGrange[Int](None, false, Some(2), false))
-  testInOut("int4range", PGrange[Int](Some(1), true, None, false))
-  testInOutCustom("int4range", PGrange[Int](Some(1), false, None, false), PGrange[Int](Some(2), true, None, false))
-  testInOut("int4range", PGrange.empty[Int])
+  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), true, Some(2), true), PGDiscreteRange[Int](Some(1), true, Some(3), false))
+  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, Some(2), false), PGDiscreteRange.empty[Int])
+  testInOutCustom("int4range", PGDiscreteRange[Int](None, false, Some(2), true), PGDiscreteRange(None, false, Some(3), false))
+  testInOut("int4range", PGDiscreteRange[Int](None, false, Some(2), false))
+  testInOut("int4range", PGDiscreteRange[Int](Some(1), true, None, false))
+  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, None, false), PGDiscreteRange[Int](Some(2), true, None, false))
+  testInOut("int4range", PGDiscreteRange.empty[Int])
 
   skip("int8range")
   skip("numrange")
