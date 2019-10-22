@@ -8,12 +8,12 @@ import cats.Order
 import cats.instances.option._
 import cats.syntax.order._
 
-object PGDiscreteRange {
+object PGContinuousRange {
 
   //todo either create order instance or move [A: Order] to PGRange
 
-  def empty[A: Order]: PGDiscreteRange[A] =
-    new PGDiscreteRange(
+  def empty[A: Order]: PGContinuousRange[A] =
+    new PGContinuousRange(
       left = None,
       leftInclusive = false,
       right = None,
@@ -23,10 +23,8 @@ object PGDiscreteRange {
   def apply[A: Order](left: Option[A],
                       leftInclusive: Boolean,
                       right: Option[A],
-                      rightInclusive: Boolean): PGDiscreteRange[A] =
-
-   // todo adjust left/right depending on leftInclusive/rightInclusive (cats-collections Discrete?)
-    new PGDiscreteRange[A](
+                      rightInclusive: Boolean): PGContinuousRange[A] =
+    new PGContinuousRange[A](
       left = left,
       leftInclusive = left.isDefined && leftInclusive,
       right = right,
@@ -34,15 +32,11 @@ object PGDiscreteRange {
     )
 }
 
-final case class PGDiscreteRange[A: Order] private(left: Option[A],
-                                                   leftInclusive: Boolean,
-                                                   right: Option[A],
-                                                   rightInclusive: Boolean) extends PGRange[A] {
+final case class PGContinuousRange[A: Order] private(left: Option[A],
+                                                     leftInclusive: Boolean,
+                                                     right: Option[A],
+                                                     rightInclusive: Boolean) extends PGRange[A] {
 
-  // todo need analogue of Discrete from cats-collections for equals? (equality depends on leftInclusive/rightInclusive)
-
-
-  // todo need analogue of Discrete as well due to the cases like (1, 2)
   def isEmpty: Boolean =
     (left.isDefined && right.isDefined) &&
     (

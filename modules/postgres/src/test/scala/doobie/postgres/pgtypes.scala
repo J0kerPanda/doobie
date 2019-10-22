@@ -6,6 +6,7 @@ package doobie.postgres
 
 import cats.effect.{ ContextShift, IO }
 import cats.instances.int._
+import cats.instances.long._
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
@@ -166,13 +167,24 @@ object pgtypesspec extends Specification {
   // 8.17 Range Types
   testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), true, Some(2), true), PGDiscreteRange[Int](Some(1), true, Some(3), false))
   testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, Some(2), false), PGDiscreteRange.empty[Int])
-  testInOutCustom("int4range", PGDiscreteRange[Int](None, false, Some(2), true), PGDiscreteRange(None, false, Some(3), false))
+  testInOutCustom("int4range", PGDiscreteRange[Int](None, false, Some(2), true), PGDiscreteRange[Int](None, false, Some(3), false))
   testInOut("int4range", PGDiscreteRange[Int](None, false, Some(2), false))
   testInOut("int4range", PGDiscreteRange[Int](Some(1), true, None, false))
   testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, None, false), PGDiscreteRange[Int](Some(2), true, None, false))
   testInOut("int4range", PGDiscreteRange.empty[Int])
+  testInOutCustom("int4range", PGDiscreteRange[Int](Some(2), true, Some(1), true), PGDiscreteRange.empty[Int])
 
-  skip("int8range")
+  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), true, Some(2), true), PGDiscreteRange[Long](Some(1), true, Some(3), false))
+  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), false, Some(2), false), PGDiscreteRange.empty[Long])
+  testInOutCustom("int8range", PGDiscreteRange[Long](None, false, Some(2), true), PGDiscreteRange[Long](None, false, Some(3), false))
+  testInOut("int8range", PGDiscreteRange[Long](None, false, Some(2), false))
+  testInOut("int8range", PGDiscreteRange[Long](Some(1), true, None, false))
+  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), false, None, false), PGDiscreteRange[Long](Some(2), true, None, false))
+  testInOut("int8range", PGDiscreteRange.empty[Long])
+  testInOutCustom("int8range", PGDiscreteRange[Long](Some(2), true, Some(1), true), PGDiscreteRange.empty[Long])
+
+  PGDiscreteRange.empty[Long].copy(???, ???, ???, ???)
+
   skip("numrange")
   skip("tsrange")
   skip("tstzrange")

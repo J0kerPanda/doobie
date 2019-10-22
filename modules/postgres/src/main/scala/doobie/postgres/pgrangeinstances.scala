@@ -4,12 +4,12 @@
 
 package doobie.postgres
 
-import cats.Eq
+import cats.Order
 import cats.data.NonEmptyList
-import doobie.postgres.implicits._
-import doobie.util.Meta
 import cats.instances.int._
 import cats.instances.long._
+import doobie.postgres.implicits._
+import doobie.util.Meta
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -32,7 +32,7 @@ trait PGrangeInstances {
         )
     }
 
-  private def encodeRange[A: Eq](range: PGRange[A], encode: A => String): String =
+  private def encodeRange[A](range: PGRange[A], encode: A => String): String =
     if (range.isEmpty)
       "empty"
     else
@@ -43,9 +43,9 @@ trait PGrangeInstances {
       (if (range.rightInclusive) "]" else ")")
 
 
-  def discreteRange[A: TypeTag: Eq](rangeType: String)
-                                   (parse: String => A)
-                                   (encode: A => String): Meta[PGDiscreteRange[A]] =
+  def discreteRange[A: TypeTag: Order](rangeType: String)
+                                      (parse: String => A)
+                                      (encode: A => String): Meta[PGDiscreteRange[A]] =
     pgObjectMeta(NonEmptyList.one(rangeType))
       { str => (PGDiscreteRange.apply[A] _).tupled(parseRange(str, parse)) }
       { encodeRange(_, encode) }
