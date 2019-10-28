@@ -165,25 +165,21 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
-  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), true, Some(2), true), PGDiscreteRange[Int](Some(1), true, Some(3), false))
-  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, Some(2), false), PGDiscreteRange.empty[Int])
-  testInOutCustom("int4range", PGDiscreteRange[Int](None, false, Some(2), true), PGDiscreteRange[Int](None, false, Some(3), false))
-  testInOut("int4range", PGDiscreteRange[Int](None, false, Some(2), false))
-  testInOut("int4range", PGDiscreteRange[Int](Some(1), true, None, false))
-  testInOutCustom("int4range", PGDiscreteRange[Int](Some(1), false, None, false), PGDiscreteRange[Int](Some(2), true, None, false))
+
+  testInOut("int4range", PGDiscreteRange[Int](Some(1), Some(2)))
+  testInOut("int4range", PGDiscreteRange[Int](None, Some(2)))
+  testInOut("int4range", PGDiscreteRange[Int](Some(1), None))
+  testInOut("int4range", PGDiscreteRange[Int](None, None))
   testInOut("int4range", PGDiscreteRange.empty[Int])
-  testInOutCustom("int4range", PGDiscreteRange[Int](Some(2), true, Some(1), true), PGDiscreteRange.empty[Int])
+  testInOutCustom("int4range", PGDiscreteRange[Int](Some(2), Some(2)), PGDiscreteRange.empty[Int])
 
-  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), true, Some(2), true), PGDiscreteRange[Long](Some(1), true, Some(3), false))
-  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), false, Some(2), false), PGDiscreteRange.empty[Long])
-  testInOutCustom("int8range", PGDiscreteRange[Long](None, false, Some(2), true), PGDiscreteRange[Long](None, false, Some(3), false))
-  testInOut("int8range", PGDiscreteRange[Long](None, false, Some(2), false))
-  testInOut("int8range", PGDiscreteRange[Long](Some(1), true, None, false))
-  testInOutCustom("int8range", PGDiscreteRange[Long](Some(1), false, None, false), PGDiscreteRange[Long](Some(2), true, None, false))
+
+  testInOut("int8range", PGDiscreteRange[Long](Some(1), Some(2)))
+  testInOut("int8range", PGDiscreteRange[Long](None, Some(2)))
+  testInOut("int8range", PGDiscreteRange[Long](Some(1), None))
+  testInOut("int8range", PGDiscreteRange[Long](None, None))
   testInOut("int8range", PGDiscreteRange.empty[Long])
-  testInOutCustom("int8range", PGDiscreteRange[Long](Some(2), true, Some(1), true), PGDiscreteRange.empty[Long])
-
-  PGDiscreteRange.empty[Long].copy(???, ???, ???, ???)
+  testInOutCustom("int8range", PGDiscreteRange[Long](Some(2), Some(2)), PGDiscreteRange.empty[Long])
 
   skip("numrange")
   skip("tsrange")

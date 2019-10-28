@@ -15,7 +15,7 @@ import scala.reflect.runtime.universe.TypeTag
 
 trait PGrangeInstances {
 
-  // https://www.postgresql.org/docs/9.4/rangetypes.html
+  // See https://www.postgresql.org/docs/9.4/rangetypes.html#RANGETYPES-IO
   private val pgrange = """(\(|\[)(.*), *(.*)(\)|\])""".r
 
   private def parseRange[A](rangeStr: String, parse: String => A): (Option[A], Boolean, Option[A], Boolean) =
@@ -47,7 +47,11 @@ trait PGrangeInstances {
                                       (parse: String => A)
                                       (encode: A => String): Meta[PGDiscreteRange[A]] =
     pgObjectMeta(NonEmptyList.one(rangeType))
-      { str => (PGDiscreteRange.apply[A] _).tupled(parseRange(str, parse)) }
+      { str =>
+        // todo see canonicalization function? or discrete
+        val (from, _, to, _) = parseRange(str, parse)
+        PGDiscreteRange(from, to)
+      }
       { encodeRange(_, encode) }
 
   implicit val intRange: Meta[PGDiscreteRange[Int]] = discreteRange("int4range")(_.toInt)(_.toString)
