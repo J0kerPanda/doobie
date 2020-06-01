@@ -165,23 +165,188 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
+  // Right should be greater than left and the difference between them should be more than 2.
+  def testInOutStandardDiscreteRange[A](rangeType: String,
+                                        left: A,
+                                        right: A)
+                                       (implicit N: Numeric[A],
+                                        G: Get[PGRange[A]],
+                                        P: Put[PGRange[A]]): Unit = {
+    // Empty ranges
+    // empty -> empty
+    testInOut(
+      rangeType,
+      PGRange.empty[A]
+    )
 
-  testInOut("int4range", PGDiscreteRange[Int](Some(1), Some(2)))
-  testInOut("int4range", PGDiscreteRange[Int](None, Some(2)))
-  testInOut("int4range", PGDiscreteRange[Int](Some(1), None))
-  testInOut("int4range", PGDiscreteRange[Int](None, None))
-  testInOut("int4range", PGDiscreteRange.empty[Int])
-  testInOutCustom("int4range", PGDiscreteRange[Int](Some(2), Some(2)), PGDiscreteRange.empty[Int])
+    // [a, a) -> empty
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
+      PGRange.empty[A]
+    )
+
+    // (a, a) -> empty
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
+      PGRange.empty[A]
+    )
+
+    // Both borders are present
+    // [a, b) -> [a, b)
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // [a, b] -> [a, b + 1)
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
+    )
+
+    // (a, b) -> [a + 1, b)
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))),
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // (a, b] -> [a + 1, b + 1)
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
+    )
+
+    // Borders are missing
+    // [a, ) -> [a, )
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None)
+    )
+
+    // (a, ) -> (a + 1, )
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None),
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), None)
+    )
+
+    // (, b) -> (, b)
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // (, b] -> (, b + 1)
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right))),
+      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
+    )
+
+    // (, ) -> (, )
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, None)
+    )
+  }
+
+  testInOutStandardDiscreteRange[Int]("int4range", 0, 2)
+  testInOutStandardDiscreteRange[Long]("int8range", 0, 2)
 
 
-  testInOut("int8range", PGDiscreteRange[Long](Some(1), Some(2)))
-  testInOut("int8range", PGDiscreteRange[Long](None, Some(2)))
-  testInOut("int8range", PGDiscreteRange[Long](Some(1), None))
-  testInOut("int8range", PGDiscreteRange[Long](None, None))
-  testInOut("int8range", PGDiscreteRange.empty[Long])
-  testInOutCustom("int8range", PGDiscreteRange[Long](Some(2), Some(2)), PGDiscreteRange.empty[Long])
+  // Right should be greater than left.
+  def testInOutContinuousRange[A](rangeType: String,
+                                  left: A,
+                                  right: A)
+                                 (implicit G: Get[PGRange[A]],
+                                  P: Put[PGRange[A]]): Unit = {
+    // Empty ranges
+    // empty -> empty
+    testInOut(
+      rangeType,
+      PGRange.empty[A]
+    )
 
-  skip("numrange")
+    // [a, a) -> empty
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
+      PGRange.empty[A]
+    )
+
+    // (a, a) -> empty
+    testInOutCustom(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
+      PGRange.empty[A]
+    )
+
+    // Both borders are present
+    // [a, b) -> [a, b)
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // [a, b] -> [a, b]
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right)))
+    )
+
+    // (a, b) -> (a, b)
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // (a, b] -> (a, b]
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right)))
+    )
+
+    // Borders are missing
+    // [a, ) -> [a, )
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None)
+    )
+
+    // (a, ) -> (a + 1, )
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None)
+    )
+
+    // (, b) -> (, b)
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right)))
+    )
+
+    // (, b] -> (, b]
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right)))
+    )
+
+    // (, ) -> (, )
+    testInOut(
+      rangeType,
+      PGNonEmptyRange.raw[A](None, None)
+    )
+  }
+
+
+  testInOutContinuousRange[Float]("numrange", 0.5f, 1.5f)
+  testInOutContinuousRange[Double]("numrange", 0.5, 1.5)
+
   skip("tsrange")
   skip("tstzrange")
   skip("daterange")
