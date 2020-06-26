@@ -6,6 +6,7 @@ package doobie.postgres
 import cats.Order
 
 // todo document purpose
+// todo create functor
 object PGRangeBorderCanonizer {
 
   private implicit def numericOrder[A](implicit N: Numeric[A]): Order[A] =

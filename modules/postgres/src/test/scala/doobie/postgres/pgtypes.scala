@@ -4,9 +4,7 @@
 
 package doobie.postgres
 
-import cats.effect.{ ContextShift, IO }
-import cats.instances.int._
-import cats.instances.long._
+import cats.effect.{ContextShift, IO}
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
@@ -16,10 +14,13 @@ import doobie.postgres.enums._
 import java.net.InetAddress
 import java.util.UUID
 import java.math.{BigDecimal => JBigDecimal}
+import java.time.{Instant, LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
+
 import org.postgis._
 import org.postgresql.util._
 import org.postgresql.geometric._
 import org.specs2.mutable.Specification
+
 import scala.concurrent.ExecutionContext
 
 // Establish that we can write and read various types.
@@ -165,191 +166,28 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
-  // Right should be greater than left and the difference between them should be more than 2.
-  def testInOutStandardDiscreteRange[A](rangeType: String,
-                                        left: A,
-                                        right: A)
-                                       (implicit N: Numeric[A],
-                                        G: Get[PGRange[A]],
-                                        P: Put[PGRange[A]]): Unit = {
-    // Empty ranges
-    // empty -> empty
-    testInOut(
-      rangeType,
-      PGRange.empty[A]
-    )
+  def testRange[A](rangeType: String, mappings: List[(PGRange[A], PGRange[A])])
+                  (implicit G: Get[PGRange[A]], P: Put[PGRange[A]]): Unit =
+    mappings.foreach { case (input, expected) => testInOutCustom(rangeType, input, expected) }
 
-    // [a, a) -> empty
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
-      PGRange.empty[A]
-    )
-
-    // (a, a) -> empty
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
-      PGRange.empty[A]
-    )
-
-    // Both borders are present
-    // [a, b) -> [a, b)
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // [a, b] -> [a, b + 1)
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
-    )
-
-    // (a, b) -> [a + 1, b)
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))),
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // (a, b] -> [a + 1, b + 1)
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))),
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
-    )
-
-    // Borders are missing
-    // [a, ) -> [a, )
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None)
-    )
-
-    // (a, ) -> (a + 1, )
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None),
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(N.plus(left, N.one))), None)
-    )
-
-    // (, b) -> (, b)
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // (, b] -> (, b + 1)
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right))),
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(N.plus(right, N.one))))
-    )
-
-    // (, ) -> (, )
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, None)
-    )
-  }
-
-  testInOutStandardDiscreteRange[Int]("int4range", 0, 2)
-  testInOutStandardDiscreteRange[Long]("int8range", 0, 2)
+  // Discrete ranges
+  testRange[Int]("int4range", pgrangespec.standardDiscreteRangeMappings[Int](0, 2))
+  testRange[Long]("int8range", pgrangespec.standardDiscreteRangeMappings[Long](0, 2))
+  testRange[LocalDate]("daterange", pgrangespec.standardDiscreteRangeMappings[LocalDate](LocalDate.ofEpochDay(0), LocalDate.ofEpochDay(2)))
 
 
-  // Right should be greater than left.
-  def testInOutContinuousRange[A](rangeType: String,
-                                  left: A,
-                                  right: A)
-                                 (implicit G: Get[PGRange[A]],
-                                  P: Put[PGRange[A]]): Unit = {
-    // Empty ranges
-    // empty -> empty
-    testInOut(
-      rangeType,
-      PGRange.empty[A]
-    )
+  // Continuous ranges
+  testRange[Float]("numrange", pgrangespec.continuousRangeMappings[Float](0.5f, 1.5f))
+  testRange[Double]("numrange", pgrangespec.continuousRangeMappings[Double](0.5, 1.5))
+  testRange[LocalDateTime]("tsrange", pgrangespec.continuousRangeMappings[LocalDateTime](
+    LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
+    LocalDateTime.ofEpochSecond(0, 2000, ZoneOffset.UTC)
+  ))
+  testRange[ZonedDateTime]("tstzrange", pgrangespec.continuousRangeMappings[ZonedDateTime](
+    ZonedDateTime.ofInstant(Instant.ofEpochMilli(0), ZoneOffset.UTC),
+    ZonedDateTime.ofInstant(Instant.ofEpochMilli(2), ZoneOffset.UTC)
+  ))
 
-    // [a, a) -> empty
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
-      PGRange.empty[A]
-    )
-
-    // (a, a) -> empty
-    testInOutCustom(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
-      PGRange.empty[A]
-    )
-
-    // Both borders are present
-    // [a, b) -> [a, b)
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // [a, b] -> [a, b]
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right)))
-    )
-
-    // (a, b) -> (a, b)
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // (a, b] -> (a, b]
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right)))
-    )
-
-    // Borders are missing
-    // [a, ) -> [a, )
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None)
-    )
-
-    // (a, ) -> (a + 1, )
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None)
-    )
-
-    // (, b) -> (, b)
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right)))
-    )
-
-    // (, b] -> (, b]
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right)))
-    )
-
-    // (, ) -> (, )
-    testInOut(
-      rangeType,
-      PGNonEmptyRange.raw[A](None, None)
-    )
-  }
-
-
-  testInOutContinuousRange[Float]("numrange", 0.5f, 1.5f)
-  testInOutContinuousRange[Double]("numrange", 0.5, 1.5)
-
-  skip("tsrange")
-  skip("tstzrange")
-  skip("daterange")
   skip("custom")
 
   // PostGIS geometry types
