@@ -4,11 +4,6 @@
 
 package doobie.postgres
 
-
-// todo [4, 5) is a valid range ->
-// todo valid range: [a, b), (b, a], (a, b) where a < b
-// todo empty range: [a, a) or (a, a] or (a, a) or (a, b) where b is next to a => only compare canonical forms?
-// todo invalid range: [a, b], (a, b), [a, b), (a, b] where b > a
 sealed trait PGRange[A] {
   def left: Option[PGRangeBorder[A]]
 
@@ -32,8 +27,8 @@ final class PGEmptyRange[A] extends PGRange[A] {
 }
 
 /**
- * Represents postgres discrete range type (see https://www.postgresql.org/docs/9.4/rangetypes.html#RANGETYPES-DISCRETE).
- * This class assumes that all provided parameters are already in a valid form provided by a canonicalization function.
+ * Represents postgres range type (see https://www.postgresql.org/docs/9.4/rangetypes.html).
+ * It is assumed that range borders are valid and canonicalized.
  * @param left - left border of the range.
  * @param right - right border of the range.
  */
@@ -63,7 +58,6 @@ object PGRange {
   def empty[A]: PGRange[A] =
     new PGEmptyRange[A]()
 
-  // todo doesn't follow convention (2, 1) -> invalid. Document
   def apply[A: PGRangeBorderCanonizer](left: Option[PGRangeBorder[A]],
                                        right: Option[PGRangeBorder[A]]): PGRange[A] =
     PGRangeBorderCanonizer[A]

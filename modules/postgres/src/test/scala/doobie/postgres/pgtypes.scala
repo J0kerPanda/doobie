@@ -179,10 +179,13 @@ object pgtypesspec extends Specification {
   // Continuous ranges
   testRange[Float]("numrange", pgrangespec.continuousRangeMappings[Float](0.5f, 1.5f))
   testRange[Double]("numrange", pgrangespec.continuousRangeMappings[Double](0.5, 1.5))
+  // todo: different precision tests
   testRange[LocalDateTime]("tsrange", pgrangespec.continuousRangeMappings[LocalDateTime](
     LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
     LocalDateTime.ofEpochSecond(0, 2000, ZoneOffset.UTC)
   ))
+  // todo: different precision tests
+  // todo: different timezone tests
   testRange[ZonedDateTime]("tstzrange", pgrangespec.continuousRangeMappings[ZonedDateTime](
     ZonedDateTime.ofInstant(Instant.ofEpochMilli(0), ZoneOffset.UTC),
     ZonedDateTime.ofInstant(Instant.ofEpochMilli(2), ZoneOffset.UTC)

@@ -16,7 +16,9 @@ import scala.reflect.runtime.universe.TypeTag
 
 trait PGrangeInstances {
 
-  // See https://www.postgresql.org/docs/9.4/rangetypes.html#RANGETYPES-IO
+  // todo: check value quotes?
+  // Regex for parsing generic PostgreSQL ranges. Produces 4 groups: left bracket, left value, right value, right bracket.
+  // See https://www.postgresql.org/docs/9.4/rangetypes.html#RANGETYPES-IO.
   private val pgrange = """([(\[])(.*), *(.*)([)\]])""".r
 
   private def parseRange[A](rangeStr: String, parse: String => A): Option[(Option[PGRangeBorder[A]], Option[PGRangeBorder[A]])] =
@@ -41,21 +43,19 @@ trait PGrangeInstances {
       range.right.map(b => encode(b.value)).getOrElse("") ++
       (if (range.right.exists(_.inclusive)) "]" else ")")
 
+  // ISO 8601 standard format.
+  // See https://www.postgresql.org/docs/9.4/datatype-datetime.html#DATATYPE-DATETIME-OUTPUT.
   private val localDateTimeFormat = new DateTimeFormatterBuilder()
     .appendPattern("yyyy-MM-dd HH:mm:ss")
     .appendFraction(ChronoField.NANO_OF_SECOND, 0, 6, true)
     .toFormatter
 
-  // todo document iso 8601
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   private def parseLocalDateTimeRange(string: String): LocalDateTime =
-    {
-      // todo document
-      // Timestamp creates the value in current timezone implicitly via new Date(), conversion back via `toLocalDateTime` is
-      // to circumvent this offset
       LocalDateTime.parse(string.filterNot(_.equals('"')), localDateTimeFormat)
-    }
 
+  // ISO 8601 standard format with timezone.
+  // See https://www.postgresql.org/docs/9.4/datatype-datetime.html#DATATYPE-DATETIME-OUTPUT.
   private val zonedDateTimeFormat = new DateTimeFormatterBuilder()
     .appendPattern("yyyy-MM-dd HH:mm:ss")
     .appendFraction(ChronoField.NANO_OF_SECOND, 0, 6, true)
@@ -63,9 +63,8 @@ trait PGrangeInstances {
     .toFormatter
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  private def parseZonedDateTimeRange(string: String): ZonedDateTime = {
+  private def parseZonedDateTimeRange(string: String): ZonedDateTime =
     ZonedDateTime.parse(string.filterNot(_.equals('"')), zonedDateTimeFormat).withZoneSameInstant(ZoneOffset.UTC)
-  }
 
   def rangeMeta[A: TypeTag](rangeType: String)
                            (parse: String => A)

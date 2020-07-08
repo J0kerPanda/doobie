@@ -4,24 +4,17 @@
 
 package doobie.postgres
 
-import cats.Order
-import cats.syntax.order._
+import cats.{Functor, Order}
 
 object PGRangeBorder {
 
   implicit def order[A: Order]: Order[PGRangeBorder[A]] =
     Order.by(_.value)
 
-
-  def formNonEmptyRange[A: Order](left: Option[PGRangeBorder[A]],
-                                  right: Option[PGRangeBorder[A]]): Boolean = {
-    val empty = for {
-      lv <- left
-      rv <- right
-    } yield lv.value > rv.value || (lv.value === rv.value) && (!lv.inclusive || !rv.inclusive)
-    empty.getOrElse(false)
+  implicit val functor: Functor[PGRangeBorder] = new Functor[PGRangeBorder] {
+    override def map[A, B](fa: PGRangeBorder[A])(f: A => B): PGRangeBorder[B] =
+      PGRangeBorder(fa.value, fa.inclusive)
   }
-
 
   def inclusive[A](value: A): PGRangeBorder[A] =
     PGRangeBorder(value, inclusive = true)
