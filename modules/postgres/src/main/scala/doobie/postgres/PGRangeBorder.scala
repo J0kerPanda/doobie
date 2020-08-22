@@ -13,7 +13,7 @@ object PGRangeBorder {
 
   implicit val functor: Functor[PGRangeBorder] = new Functor[PGRangeBorder] {
     override def map[A, B](fa: PGRangeBorder[A])(f: A => B): PGRangeBorder[B] =
-      PGRangeBorder(fa.value, fa.inclusive)
+      PGRangeBorder(f(fa.value), fa.inclusive)
   }
 
   def inclusive[A](value: A): PGRangeBorder[A] =

@@ -15,7 +15,7 @@ sealed trait PGRange[A] {
 /** As defined in PostgreSQL specification (https://www.postgresql.org/docs/9.4/rangetypes.html#RANGETYPES-IO),
   * empty range is a separate object and requires different handling than ordinary ranges.
   */
-final class PGEmptyRange[A] extends PGRange[A] {
+final case class PGEmptyRange[A]() extends PGRange[A] {
   override def left: Option[PGRangeBorder[A]] = None
   override def right: Option[PGRangeBorder[A]] = None
   override def isEmpty: Boolean = true
@@ -57,6 +57,9 @@ object PGNonEmptyRange {
 object PGRange {
   def empty[A]: PGRange[A] =
     new PGEmptyRange[A]()
+
+  def infinite[A]: PGRange[A] =
+    new PGNonEmptyRange[A](None, None) {}
 
   def apply[A: PGRangeBorderCanonizer](left: Option[PGRangeBorder[A]],
                                        right: Option[PGRangeBorder[A]]): PGRange[A] =

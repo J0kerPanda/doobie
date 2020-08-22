@@ -16,6 +16,7 @@ import java.util.UUID
 import java.math.{BigDecimal => JBigDecimal}
 import java.time.{Instant, LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
 
+import doobie.postgres.pgrangespec.PGRangeMappingTest
 import org.postgis._
 import org.postgresql.util._
 import org.postgresql.geometric._
@@ -166,30 +167,42 @@ object pgtypesspec extends Specification {
   skip("structs")
 
   // 8.17 Range Types
-  def testRange[A](rangeType: String, mappings: List[(PGRange[A], PGRange[A])])
+  def testRange[A](rangeType: String, mappings: List[PGRangeMappingTest[A]])
                   (implicit G: Get[PGRange[A]], P: Put[PGRange[A]]): Unit =
-    mappings.foreach { case (input, expected) => testInOutCustom(rangeType, input, expected) }
+    mappings
+      .collect { case PGRangeMappingTest(_, input, Some(expected)) => input -> expected }
+      .foreach { case (input, expected) => testInOutCustom(rangeType, input, expected) }
 
   // Discrete ranges
   testRange[Int]("int4range", pgrangespec.standardDiscreteRangeMappings[Int](0, 2))
   testRange[Long]("int8range", pgrangespec.standardDiscreteRangeMappings[Long](0, 2))
   testRange[LocalDate]("daterange", pgrangespec.standardDiscreteRangeMappings[LocalDate](LocalDate.ofEpochDay(0), LocalDate.ofEpochDay(2)))
 
-
   // Continuous ranges
   testRange[Float]("numrange", pgrangespec.continuousRangeMappings[Float](0.5f, 1.5f))
   testRange[Double]("numrange", pgrangespec.continuousRangeMappings[Double](0.5, 1.5))
-  // todo: different precision tests
-  testRange[LocalDateTime]("tsrange", pgrangespec.continuousRangeMappings[LocalDateTime](
-    LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
-    LocalDateTime.ofEpochSecond(0, 2000, ZoneOffset.UTC)
-  ))
-  // todo: different precision tests
-  // todo: different timezone tests
-  testRange[ZonedDateTime]("tstzrange", pgrangespec.continuousRangeMappings[ZonedDateTime](
-    ZonedDateTime.ofInstant(Instant.ofEpochMilli(0), ZoneOffset.UTC),
-    ZonedDateTime.ofInstant(Instant.ofEpochMilli(2), ZoneOffset.UTC)
-  ))
+
+  testRange[LocalDateTime]("tsrange",
+    (
+      pgrangespec.continuousRangeMappings[LocalDateTime](
+        // Microsecond precision
+        LocalDateTime.ofEpochSecond(0, 1000, ZoneOffset.UTC),
+        LocalDateTime.ofEpochSecond(0, 2000, ZoneOffset.UTC)
+      ) ++
+      // Millisecond precision
+      pgrangespec.continuousRangeMappings[LocalDateTime](
+        LocalDateTime.ofEpochSecond(0, 1000000, ZoneOffset.UTC),
+        LocalDateTime.ofEpochSecond(0, 2000000, ZoneOffset.UTC)
+      ) ++
+      // Second precision
+      pgrangespec.continuousRangeMappings[LocalDateTime](
+        LocalDateTime.ofEpochSecond(1, 0, ZoneOffset.UTC),
+        LocalDateTime.ofEpochSecond(2, 0, ZoneOffset.UTC)
+      )
+    ).distinct
+  )
+
+  skip("tstzrange")
 
   skip("custom")
 

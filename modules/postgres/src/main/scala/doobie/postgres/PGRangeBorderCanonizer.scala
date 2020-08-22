@@ -3,9 +3,11 @@
 // For more information see LICENSE or https://opensource.org/licenses/MIT
 
 package doobie.postgres
+import java.time.{LocalDate, LocalDateTime}
+
+import cats.Invariant
 import cats.syntax.functor._
-import cats.syntax.order._
-import cats.{Invariant, Order}
+import cats.syntax.invariant._
 
 object PGRangeBorderCanonizer {
 
@@ -29,7 +31,7 @@ object PGRangeBorderCanonizer {
       if (formEmptyDefaultRange(nl, nr)) None else Some((nl, nr))
     }
 
-  def continuousNumeric[A](implicit N: Numeric[A]): PGRangeBorderCanonizer[A] =
+  def continuousNumeric[A](implicit N: Ordering[A]): PGRangeBorderCanonizer[A] =
     (l ,r) =>
       if (formEmptyDefaultRange(l, r)) None else Some((l, r))
 
@@ -39,22 +41,28 @@ object PGRangeBorderCanonizer {
   implicit val long: PGRangeBorderCanonizer[Long] =
     discreteNumeric[Long]
 
+  implicit val localDate: PGRangeBorderCanonizer[LocalDate] =
+    long.imap(LocalDate.ofEpochDay)(_.toEpochDay)
+
   implicit val float: PGRangeBorderCanonizer[Float] =
     continuousNumeric[Float]
 
   implicit val double: PGRangeBorderCanonizer[Double] =
-    continuousNumeric
+    continuousNumeric[Double]
 
-  private implicit def numericOrder[A](implicit N: Numeric[A]): Order[A] =
-    Order.fromOrdering(N)
+  implicit val localDateTime: PGRangeBorderCanonizer[LocalDateTime] = {
+    implicit val O: Ordering[LocalDateTime] = Ordering.fromLessThan(_ isBefore _)
+    continuousNumeric[LocalDateTime]
+  }
 
   // This function is intended only for default canonicalization schemes, i.e. to the `[,)` form.
-  private def formEmptyDefaultRange[A: Order](left: Option[PGRangeBorder[A]],
-                                              right: Option[PGRangeBorder[A]]): Boolean = {
+  private def formEmptyDefaultRange[A](left: Option[PGRangeBorder[A]],
+                                       right: Option[PGRangeBorder[A]])
+                                      (implicit O: Ordering[A]): Boolean = {
     val empty = for {
       lv <- left
       rv <- right
-    } yield lv.value > rv.value || (lv.value === rv.value) && (!lv.inclusive || !rv.inclusive)
+    } yield O.gt(lv.value, rv.value) || O.equiv(lv.value, rv.value) && (!lv.inclusive || !rv.inclusive)
     empty.getOrElse(false)
   }
 }

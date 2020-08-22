@@ -4,9 +4,10 @@
 
 package doobie.postgres
 
-import java.time.LocalDate
+import java.time.{LocalDate, LocalDateTime, ZoneOffset}
 
 import org.specs2.mutable.Specification
+import org.specs2.specification.core.Fragments
 
 @SuppressWarnings(Array("org.wartremover.warts.NonUnitStatements"))
 object pgrangespec extends Specification {
@@ -31,184 +32,377 @@ object pgrangespec extends Specification {
     d => LocalDate.ofEpochDay(d.toEpochDay + 1)
   )
 
+  object PGRangeMappingTest {
+
+    def identity[A](description: String,
+                    input: PGRange[A]): PGRangeMappingTest[A] =
+      PGRangeMappingTest(description, input, Some(input))
+  }
+
+  final case class PGRangeMappingTest[A](description: String,
+                                   input: PGRange[A],
+                                   expected: Option[PGRange[A]])
+
   // Normalized range mappings for the standard normalization function.
   // Difference between `left` & `right` is assumed to be _more_ than 1 (left < right).
   // Both `left` & `right` assumed to not overflow if incremented or decremented.
   def standardDiscreteRangeMappings[A](left: A, right: A)
-                                      (implicit D: Discrete[A]): List[(PGRange[A], PGRange[A])] =
+                                      (implicit D: Discrete[A]): List[PGRangeMappingTest[A]] =
     List(
       // Empty ranges
-      // empty -> empty
-      PGRange.empty[A] ->
-      PGRange.empty[A],
+      PGRangeMappingTest.identity(
+        "empty -> empty",
+        PGRange.empty
+      ),
 
-      // [a, a) -> empty
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[A],
+      PGRangeMappingTest(
+        "[a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
-      // (a, a) -> empty
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[A],
+      PGRangeMappingTest(
+        "(a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
       // Both borders are present
-      // [a, a + 1) -> [a, a + 1) (single point)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(D.succ(left)))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(D.succ(left)))),
+      PGRangeMappingTest.identity(
+        "[a, a + 1) -> [a, a + 1) (single point)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(D.succ(left))))
+      ),
 
-      // [a, b) -> [a, b)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest.identity(
+        "[a, b) -> [a, b)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
+      ),
 
-      // [a, b] -> [a, b + 1)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(D.succ(right)))),
+      PGRangeMappingTest(
+        "[a, b] -> [a, b + 1)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(D.succ(right)))))
+      ),
 
-      // (a, b) -> [a + 1, b)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(D.succ(left))), Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest(
+        "(a, b) -> [a + 1, b)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(D.succ(left))), Some(PGRangeBorder.exclusive(right))))
+      ),
 
-      // (a, b] -> [a + 1, b + 1)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(D.succ(left))), Some(PGRangeBorder.exclusive(D.succ(right)))),
+      PGRangeMappingTest(
+        "(a, b] -> [a + 1, b + 1)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(D.succ(left))), Some(PGRangeBorder.exclusive(D.succ(right)))))
+      ),
 
       // Some borders are missing
-      // [a, ) -> [a, )
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None),
+      PGRangeMappingTest.identity(
+        "[a, ) -> [a, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), None)
+      ),
 
-      // (a, ) -> (a + 1, )
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(D.succ(left))), None),
+      PGRangeMappingTest(
+        "(a, ) -> [a + 1, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), None),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(D.succ(left))), None))
+      ),
 
-      // (, b) -> (, b)
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest.identity(
+        "(, b) -> (, b)",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.exclusive(right)))
+      ),
 
-      // (, b] -> (, b + 1)
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(D.succ(right)))),
+      PGRangeMappingTest(
+        "(, b] -> (, b + 1)",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.inclusive(right))),
+        Some(PGNonEmptyRange.raw(None, Some(PGRangeBorder.exclusive(D.succ(right)))))
+      ),
 
-      // (, ) -> (, )
-      PGNonEmptyRange.raw[A](None, None) ->
-      PGNonEmptyRange.raw[A](None, None)
+      PGRangeMappingTest.identity(
+        "(, ) -> (, )",
+        PGNonEmptyRange.raw(None, None)
+      ),
+
+      // Ranges considered invalid by the PostgreSQL specification
+      PGRangeMappingTest(
+        "[b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "[b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      )
     )
 
   // Range mappings for continuous ranges.
   // Left is assumed to be less than right by a number that can be identified by the database.
-  def continuousRangeMappings[A](left: A, right: A): List[(PGRange[A], PGRange[A])] =
+  def continuousRangeMappings[A](left: A, right: A): List[PGRangeMappingTest[A]] =
     List(
       // Empty ranges
-      // empty -> empty
-      PGRange.empty[A] ->
-      PGRange.empty[A],
+      PGRangeMappingTest.identity(
+        "empty -> empty",
+        PGRange.empty
+      ),
 
-      // [a, a) -> empty
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[A],
+      PGRangeMappingTest(
+        "[a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
-      // (a, a) -> empty
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[A],
+      PGRangeMappingTest(
+        "(a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
       // Both borders are present
-      // [a, b) -> [a, b)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest.identity(
+        "[a, b) -> [a, b)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right)))
+      ),
 
-      // [a, b] -> [a, b]
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest.identity(
+        "[a, b] -> [a, b]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      ),
 
-      // (a, b) -> (a, b)
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest.identity(
+        "(a, b) -> (a, b)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right)))
+      ),
 
-      // (a, b] -> (a, b]
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest.identity(
+        "(a, b] -> (a, b]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right)))
+      ),
 
       // Some borders are missing
-      // [a, ) -> [a, )
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.inclusive(left)), None),
+      PGRangeMappingTest.identity(
+        "[a, ) -> [a, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), None)
+      ),
 
-      // (a, ) -> (a + 1, )
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None) ->
-      PGNonEmptyRange.raw[A](Some(PGRangeBorder.exclusive(left)), None),
+      PGRangeMappingTest.identity(
+        "(a, ) -> (a, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), None)
+      ),
 
-      // (, b) -> (, b)
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.exclusive(right))),
+      PGRangeMappingTest.identity(
+        "(, b) -> (, b)",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.exclusive(right)))
+      ),
 
-      // (, b] -> (, b]
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[A](None, Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest.identity(
+        "(, b] -> (, b]",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.inclusive(right)))
+      ),
 
-      // (, ) -> (, )
-      PGNonEmptyRange.raw[A](None, None) ->
-      PGNonEmptyRange.raw[A](None, None)
+      PGRangeMappingTest.identity(
+        "(, ) -> (, )",
+        PGNonEmptyRange.raw(None, None)
+      ),
+
+      // Ranges considered invalid by the PostgreSQL specification
+      PGRangeMappingTest(
+        "[b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "[b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      )
     )
 
   // Normalized range mappings for the custom_range normalization function `(,]`.
   // Difference between `left` & `right` is assumed to be _more_ than 1 (left < right).
   // Both `left` & `right` assumed to not overflow if incremented or decremented.
-  def customRangeMappings(left: Long, right: Long): List[(PGRange[Long], PGRange[Long])] =
+  def customRangeMappings(left: Long, right: Long): List[PGRangeMappingTest[Long]] =
     List(
       // Empty ranges
-      // empty -> empty
-      PGRange.empty[Long] ->
-      PGRange.empty[Long],
+      PGRangeMappingTest.identity(
+        "empty -> empty",
+        PGRange.empty
+      ),
 
-      // [a, a) -> empty
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[Long],
+      PGRangeMappingTest(
+        "[a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
-      // (a, a) -> empty
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))) ->
-      PGRange.empty[Long],
+      PGRangeMappingTest(
+        "(a, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(left))),
+        Some(PGRange.empty)
+      ),
 
       // Both borders are present
-      // (a, a + 1] -> (a, a + 1] (single point)
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(left + 1))) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(left + 1))),
+      //
+      PGRangeMappingTest.identity(
+        "(a, a + 1] -> (a, a + 1] (single point)",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(left + 1)))
+      ),
 
-      // [a, b) -> (a + 1, b - 1]
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left + 1)), Some(PGRangeBorder.inclusive(right - 1))),
+      PGRangeMappingTest(
+        "[a, b) -> (a + 1, b - 1]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.exclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left + 1)), Some(PGRangeBorder.inclusive(right - 1))))
+      ),
 
-      // [a, b] -> (a + 1, b]
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left + 1)), Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest(
+        "[a, b] -> (a + 1, b]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), Some(PGRangeBorder.inclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left + 1)), Some(PGRangeBorder.inclusive(right))))
+      ),
 
-      // (a, b) -> (a, b - 1]
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right - 1))),
+      PGRangeMappingTest(
+        "(a, b) -> (a, b - 1]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.exclusive(right))),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right - 1))))
+      ),
 
-      // (a, b] -> (a, b]
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest.identity(
+        "(a, b] -> (a, b]",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), Some(PGRangeBorder.inclusive(right)))
+      ),
 
       // Some borders are missing
-      // [a, ) -> (a + 1, )
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.inclusive(left)), None) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left + 1)), None),
+      PGRangeMappingTest(
+        "[a, ) -> (a + 1, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(left)), None),
+        Some(PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left + 1)), None))
+      ),
 
-      // (a, ) -> (a, )
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), None) ->
-      PGNonEmptyRange.raw[Long](Some(PGRangeBorder.exclusive(left)), None),
+      PGRangeMappingTest.identity(
+        "(a, ) -> (a, )",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(left)), None),
+      ),
 
-      // (, b) -> (, b - 1]
-      PGNonEmptyRange.raw[Long](None, Some(PGRangeBorder.exclusive(right))) ->
-      PGNonEmptyRange.raw[Long](None, Some(PGRangeBorder.inclusive(right - 1))),
+      PGRangeMappingTest(
+        "(, b) -> (, b - 1]",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.exclusive(right))),
+        Some(PGNonEmptyRange.raw(None, Some(PGRangeBorder.inclusive(right - 1))))
+      ),
 
-      // (, b] -> (, b]
-      PGNonEmptyRange.raw[Long](None, Some(PGRangeBorder.inclusive(right))) ->
-      PGNonEmptyRange.raw[Long](None, Some(PGRangeBorder.inclusive(right))),
+      PGRangeMappingTest.identity(
+        "(, b] -> (, b]",
+        PGNonEmptyRange.raw(None, Some(PGRangeBorder.inclusive(right)))
+      ),
 
-      // (, ) -> (, )
-      PGNonEmptyRange.raw[Long](None, None) ->
-      PGNonEmptyRange.raw[Long](None, None)
+      PGRangeMappingTest.identity(
+        "(, ) -> (, )",
+        PGNonEmptyRange.raw(None, None)
+      ),
+
+      // Ranges considered invalid by the PostgreSQL specification
+      PGRangeMappingTest(
+        "[b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "(b, a) -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.exclusive(right)), Some(PGRangeBorder.exclusive(left))),
+        None
+      ),
+
+      PGRangeMappingTest(
+        "[b, a] -> empty",
+        PGNonEmptyRange.raw(Some(PGRangeBorder.inclusive(right)), Some(PGRangeBorder.inclusive(left))),
+        None
+      )
     )
 
-  //  testInOutCustomRange("custom_range", 0, 2)
+  def testCanonicalizationFunction[A: PGRangeBorderCanonizer](mappings: List[PGRangeMappingTest[A]],
+                                                              mappingName: String): Fragments = {
+    s"Range canonicalization function for $mappingName" >> {
+      Fragments.foreach(mappings.filterNot(_.input.isEmpty)) { mapping =>
+        val expectedBorders = mapping.expected match {
+          case Some(PGNonEmptyRange(left, right)) => Some((left, right))
+          case _ => None
+        }
+        s"${mapping.description}" in {
+          PGRangeBorderCanonizer[A].canonize(mapping.input.left, mapping.input.right) must_== expectedBorders
+        }
+      }
+    }
+  }
+
+  // Discrete ranges
+  testCanonicalizationFunction[Int](
+    standardDiscreteRangeMappings(0, 2),
+    "Int"
+  )
+  testCanonicalizationFunction[Long](
+    standardDiscreteRangeMappings(0, 2),
+    "Long"
+  )
+  testCanonicalizationFunction[LocalDate](
+    standardDiscreteRangeMappings(LocalDate.ofEpochDay(0), LocalDate.ofEpochDay(2)),
+    "LocalDate"
+  )
+
+  // Continuous ranges
+  testCanonicalizationFunction[Float](
+    pgrangespec.continuousRangeMappings[Float](0.5f, 1.5f),
+  "Float"
+  )
+  testCanonicalizationFunction[Double](
+    pgrangespec.continuousRangeMappings[Double](0.5, 1.5),
+  "Double"
+  )
+
+  testCanonicalizationFunction[LocalDateTime](pgrangespec.continuousRangeMappings[LocalDateTime](
+    LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
+    LocalDateTime.ofEpochSecond(0, 2000, ZoneOffset.UTC)
+  ), "LocalDateTIme (microsecond precision)")
+
+  testCanonicalizationFunction[LocalDateTime](pgrangespec.continuousRangeMappings[LocalDateTime](
+    LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
+    LocalDateTime.ofEpochSecond(0, 2000000, ZoneOffset.UTC)
+  ), "LocalDateTIme (millisecond precision)")
+
+  testCanonicalizationFunction[LocalDateTime](pgrangespec.continuousRangeMappings[LocalDateTime](
+    LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC),
+    LocalDateTime.ofEpochSecond(2, 0, ZoneOffset.UTC)
+  ), "LocalDateTime(second precision)")
 }

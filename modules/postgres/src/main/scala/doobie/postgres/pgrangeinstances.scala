@@ -6,7 +6,7 @@ package doobie.postgres
 
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
-import java.time.{LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
+import java.time.{LocalDate, LocalDateTime}
 
 import cats.data.NonEmptyList
 import doobie.postgres.implicits._
@@ -47,6 +47,7 @@ trait PGrangeInstances {
   // See https://www.postgresql.org/docs/9.4/datatype-datetime.html#DATATYPE-DATETIME-OUTPUT.
   private val localDateTimeFormat = new DateTimeFormatterBuilder()
     .appendPattern("yyyy-MM-dd HH:mm:ss")
+    // PostgreSQL documents state microsecond precision: https://www.postgresql.org/docs/9.4/datatype-datetime.html
     .appendFraction(ChronoField.NANO_OF_SECOND, 0, 6, true)
     .toFormatter
 
@@ -54,24 +55,11 @@ trait PGrangeInstances {
   private def parseLocalDateTimeRange(string: String): LocalDateTime =
       LocalDateTime.parse(string.filterNot(_.equals('"')), localDateTimeFormat)
 
-  // ISO 8601 standard format with timezone.
-  // See https://www.postgresql.org/docs/9.4/datatype-datetime.html#DATATYPE-DATETIME-OUTPUT.
-  private val zonedDateTimeFormat = new DateTimeFormatterBuilder()
-    .appendPattern("yyyy-MM-dd HH:mm:ss")
-    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 6, true)
-    .appendPattern("X")
-    .toFormatter
-
-  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  private def parseZonedDateTimeRange(string: String): ZonedDateTime =
-    ZonedDateTime.parse(string.filterNot(_.equals('"')), zonedDateTimeFormat).withZoneSameInstant(ZoneOffset.UTC)
-
   def rangeMeta[A: TypeTag](rangeType: String)
                            (parse: String => A)
                            (encode: A => String): Meta[PGRange[A]] =
     pgObjectMeta(NonEmptyList.one(rangeType))
     {
-      // https://stackoverflow.com/questions/29895077/how-to-create-a-new-date-range-type-with-included-upper-bound-in-postgres
       parseRange(_, parse)
         .map { case (left, right) => PGNonEmptyRange.raw(left, right) }
         .getOrElse(PGRange.empty)
@@ -87,5 +75,4 @@ trait PGrangeInstances {
   implicit val floatRange: Meta[PGRange[Float]] = rangeMeta("numrange")(_.toFloat)(_.toString)
   implicit val doubleRange: Meta[PGRange[Double]] = rangeMeta("numrange")(_.toDouble)(_.toString)
   implicit val timestampRange: Meta[PGRange[LocalDateTime]] = rangeMeta("tsrange")(parseLocalDateTimeRange)(_.toString)
-  implicit val zonedDateTimeRange: Meta[PGRange[ZonedDateTime]] = rangeMeta("tstzrange")(parseZonedDateTimeRange)(_.toString)
 }
